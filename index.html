@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Event Electronic Registration</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
       background-color: #1f1f1f;
@@ -14,7 +14,7 @@
       padding: 0;
     }
     .container {
-      max-width: 500px;
+      max-width: 600px;
       width: 90%;
       margin: auto;
       padding: 20px;
@@ -22,19 +22,16 @@
     .header {
       font-family: cursive;
     }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      margin: 6px 0;
+      box-sizing: border-box;
+    }
     label {
       display: block;
       text-align: left;
-      margin: 10px 0 5px;
-    }
-    input[type="text"],
-    input[type="number"] {
-      width: 100%;
-      margin-bottom: 10px;
-      padding: 10px;
-      font-size: 16px;
-      border: none;
-      border-radius: 4px;
+      margin-top: 10px;
     }
     .btn {
       padding: 10px 20px;
@@ -52,12 +49,30 @@
       background-color: #00bfff;
       color: white;
     }
-    .name-fields {
-      margin-top: 10px;
+    .done-btn {
+      background-color: #32cd32;
+      color: white;
+    }
+    .refresh-btn {
+      background-color: #ffa500;
+      color: white;
+      margin-top: 15px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    th, td {
+      padding: 8px;
+      border: 1px solid white;
     }
     @media (max-width: 600px) {
       .btn {
         width: 100%;
+      }
+      table, thead, tbody, th, td, tr {
+        font-size: 14px;
       }
     }
   </style>
@@ -68,29 +83,107 @@
     <h1 class="header">International One Way Outreach Church</h1>
     <h3>Event Electronic Registration</h3>
 
+    <!-- Index Page -->
+    {% if view == 'index' %}
     <h2>Submission</h2>
-    <label><input type="checkbox" id="single" onclick="toggleType('single')"> Single</label>
-    <label><input type="checkbox" id="group" onclick="toggleType('group')"> Group</label>
+    <label><input type="checkbox" id="single" onclick="toggleType('single')" {% if type == 'single' %}checked{% endif %}> Single</label>
+    <label><input type="checkbox" id="group" onclick="toggleType('group')" {% if type == 'group' %}checked{% endif %}> Group</label>
 
-    <div>
-      <label for="area">Area:</label>
-      <input type="number" id="area" required />
-      <label for="church">Church:</label>
-      <input type="text" id="church" required />
-    </div>
+    <label for="area">Area:</label>
+    <input type="number" id="area" value="{{ area or '' }}" required />
 
-    <div id="name-fields" class="name-fields">
+    <label for="church">Church:</label>
+    <input type="text" id="church" value="{{ church or '' }}" required />
+
+    <div id="name-fields">
       <label>Full Name:</label>
-      <input type="text" class="fullname" />
+      {% for name in names %}
+        <input type="text" class="fullname" value="{{ name }}" /><br />
+      {% endfor %}
     </div>
 
-    <button class="btn add-more" id="addMoreBtn" style="display:none" onclick="addMoreFields()">Add More</button><br />
+    <button class="btn add-more" id="addMoreBtn" style="display:none" onclick="addMoreFields()">Add More</button>
     <button class="btn submit-btn" onclick="submitForm()">Submit</button>
+
+    <!-- Status Page -->
+    {% elif view == 'status' %}
+    <h2>Status</h2>
+    <p><strong>Area:</strong> {{ area }}</p>
+    <p><strong>Church:</strong> {{ church }}</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for name, status in data %}
+        <tr>
+          <td>{{ name }}</td>
+          <td>{{ '✅ Approved' if status else '⏳ Pending' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button class="btn refresh-btn" onclick="location.reload()">Refresh</button>
+    <button class="btn done-btn" onclick="window.location.href='/'">Done</button>
+
+    <!-- Admin Page -->
+    {% elif view == 'admin' %}
+    <h2>Admin Panel</h2>
+    <label for="filter_type">Filter:</label>
+    <select id="filter_type" onchange="filterTypeChanged()">
+      <option value="all">All</option>
+      <option value="area">By Area</option>
+      <option value="church">By Church</option>
+    </select>
+
+    <div id="filter_value_container" style="display:none">
+      <label for="filter_value">Value:</label>
+      <select id="filter_value" onchange="filterValueChanged()">
+        <!-- Options will be loaded dynamically -->
+      </select>
+    </div>
+
+    <p>Total Registered: <span id="total">{{ total }}</span></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Area</th>
+          <th>Church</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in data %}
+        <tr>
+          <td>{{ row.name }}</td>
+          <td>{{ row.area }}</td>
+          <td>{{ row.church }}</td>
+          <td>{{ '✅' if row.status else '⏳' }}</td>
+          <td><a href="/approve/{{ row.id }}?password={{ password }}">Approve</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <button class="btn refresh-btn" onclick="location.reload()">Refresh</button>
+
+    <div style="margin-top: 20px;">
+      <input type="password" id="admin-pass" placeholder="Enter password to erase" />
+      <button class="btn" style="background-color:red; color:white" onclick="confirmErase()">Erase All Data</button>
+    </div>
+    {% endif %}
   </div>
 
   <script>
-    let mode = 'single';
-    let totalFields = 1;
+    let mode = '{{ type or 'single' }}';
+    let totalFields = {{ names|length if names else 1 }};
 
     function toggleType(selected) {
       document.getElementById('single').checked = selected === 'single';
@@ -101,7 +194,7 @@
       container.innerHTML = '<label>Full Name:</label>';
       totalFields = (mode === 'single') ? 1 : 10;
       for (let i = 0; i < totalFields; i++) {
-        container.innerHTML += '<input type="text" class="fullname"><br>';
+        container.innerHTML += '<input type="text" class="fullname"><br />';
       }
       document.getElementById('addMoreBtn').style.display = (mode === 'group') ? 'inline-block' : 'none';
     }
@@ -110,7 +203,7 @@
       if (totalFields >= 100) return;
       const container = document.getElementById('name-fields');
       for (let i = 0; i < 10 && totalFields < 100; i++) {
-        container.innerHTML += '<input type="text" class="fullname"><br>';
+        container.innerHTML += '<input type="text" class="fullname"><br />';
         totalFields++;
       }
     }
@@ -125,24 +218,41 @@
         return;
       }
 
-      try {
-        const response = await fetch('/submit', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ area, church, names })
-        });
+      const response = await fetch('/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ area, church, names })
+      });
 
-        const result = await response.json();
+      const result = await response.json();
 
-        if (result.status === 'error') {
-          alert(result.message);
-        } else {
-          window.location.href = `/status?id=${result.group_id}`;
-        }
-      } catch (err) {
-        console.error(err);
-        alert('Submission failed.');
+      if (result.status === 'error') {
+        alert(result.message);
+      } else {
+        window.location.href = `/status?id=${result.group_id}`;
       }
+    }
+
+    function confirmErase() {
+      const input = document.getElementById('admin-pass');
+      if (input.value === 'psr550') {
+        if (confirm("Are you sure you want to delete all records?")) {
+          window.location.href = `/erase?password=${input.value}`;
+        }
+      } else {
+        alert("Incorrect password!");
+      }
+    }
+
+    function filterTypeChanged() {
+      const type = document.getElementById("filter_type").value;
+      window.location.href = `/admin?password={{ password }}&filter_type=${type}`;
+    }
+
+    function filterValueChanged() {
+      const type = document.getElementById("filter_type").value;
+      const value = document.getElementById("filter_value").value;
+      window.location.href = `/admin?password={{ password }}&filter_type=${type}&filter_value=${value}`;
     }
   </script>
 </body>
