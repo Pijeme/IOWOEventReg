@@ -1,8 +1,9 @@
-from flask import Flask, request, jsonify, render_template_string, redirect
+from flask import Flask, request, jsonify, render_template_string, send_file, redirect
 import sqlite3
 import os
 from datetime import datetime
 import requests
+import pandas as pd
 
 app = Flask(__name__)
 
@@ -10,6 +11,7 @@ DB_FILE = 'data.db'
 ADMIN_PASSWORD = '1234567890'
 ERASE_PASSWORD = 'psr550'
 SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/5579b6ce-f97d-484c-9f62-f670ed64e5ff'
+
 
 def init_db():
     with sqlite3.connect(DB_FILE) as conn:
@@ -23,7 +25,6 @@ def init_db():
                 status TEXT DEFAULT 'Pending'
             );
         """)
-        # Check if table is empty
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM registrations")
         if cursor.fetchone()[0] == 0:
@@ -33,8 +34,8 @@ def init_db():
                 for row in data:
                     conn.execute('''
                         INSERT OR IGNORE INTO registrations (full_name, church, area, group_id, status)
-                        VALUES (?, ?, ?, ?, ?)
-                    ''', (row['full_name'], row['church'], row['area'], row['group_id'], row.get('status', 'Pending')))
+                        VALUES (?, ?, ?, ?, ?)''',
+                        (row['full_name'], row['church'], row['area'], row['group_id'], row.get('status', 'Pending')))
                 conn.commit()
                 print("Restored data from Google Sheets.")
             except Exception as e:
@@ -42,9 +43,11 @@ def init_db():
 
 init_db()
 
+
 @app.route('/')
 def index():
     return open('index.html').read()
+
 
 @app.route('/submit', methods=['POST'])
 def submit():
@@ -64,11 +67,9 @@ def submit():
         for name in names:
             cursor.execute(
                 'INSERT INTO registrations (full_name, church, area, group_id) VALUES (?, ?, ?, ?)',
-                (name, church, area, group_id)
-            )
+                (name, church, area, group_id))
         conn.commit()
 
-    # Send to Google Sheets
     try:
         payload = [{
             'full_name': name,
@@ -83,14 +84,13 @@ def submit():
 
     return jsonify({'status': 'success', 'group_id': group_id})
 
+
 @app.route('/status')
 def status():
     group_id = request.args.get('id')
     with sqlite3.connect(DB_FILE) as conn:
         cursor = conn.cursor()
-        cursor.execute(
-            'SELECT full_name, status FROM registrations WHERE group_id = ?',
-            (group_id,))
+        cursor.execute('SELECT full_name, status FROM registrations WHERE group_id = ?', (group_id,))
         rows = cursor.fetchall()
 
     all_approved = all(row[1] == 'Approved' for row in rows)
@@ -123,6 +123,7 @@ def status():
         </body>
         </html>
     """, rows=rows, all_approved=all_approved)
+
 
 @app.route('/admin')
 def admin_login():
@@ -185,6 +186,7 @@ def admin_login():
 
             <button onclick="eraseData()">Erase All Data</button>
             <button onclick="location.reload()">Refresh Page</button>
+            <button onclick="window.location.href='/download'">Save Database</button>
 
             <script>
                 const churches = {{ churches | tojson }};
@@ -256,6 +258,7 @@ def admin_login():
         </html>
     """, rows=rows, churches=churches, areas=areas, erase_pass=ERASE_PASSWORD)
 
+
 @app.route('/approve', methods=['POST'])
 def approve():
     full_name = request.json['full_name']
@@ -263,11 +266,22 @@ def approve():
         conn.execute('UPDATE registrations SET status = "Approved" WHERE full_name = ?', (full_name,))
     return '', 204
 
+
 @app.route('/erase', methods=['POST'])
 def erase():
     with sqlite3.connect(DB_FILE) as conn:
         conn.execute('DELETE FROM registrations')
     return '', 204
+
+
+@app.route('/download')
+def download():
+    with sqlite3.connect(DB_FILE) as conn:
+        df = pd.read_sql_query("SELECT * FROM registrations", conn)
+        filename = '/tmp/registration_data.xlsx'
+        df.to_excel(filename, index=False)
+    return send_file(filename, as_attachment=True)
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=3000, debug=True)
