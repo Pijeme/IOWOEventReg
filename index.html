@@ -3,46 +3,56 @@
 <head>
   <meta charset="UTF-8" />
   <title>Event Electronic Registration</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
-      background-color: #1f1f1f;
-      color: white;
-      font-family: Arial, sans-serif;
+      background: linear-gradient(to bottom right, #ffdee9, #b5fffc);
+      color: #333;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
       text-align: center;
     }
 
     .container {
+      max-width: 95%;
       width: 600px;
       margin: auto;
       padding: 20px;
+      background-color: white;
+      border-radius: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     }
 
     .header {
       font-family: cursive;
+      color: #ff69b4;
     }
 
     .form-group {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
+      flex-direction: column;
+      align-items: flex-start;
       margin: 10px 0;
       text-align: left;
     }
 
     .form-group label {
-      width: 140px;
       font-weight: bold;
+      margin-bottom: 5px;
+      color: #ff69b4;
     }
 
     .form-group input {
-      flex: 1;
-      padding: 8px;
-      border: none;
-      border-radius: 4px;
+      width: 100%;
+      padding: 10px;
+      border: 2px solid #ffe0f0;
+      border-radius: 10px;
     }
 
     .checkboxes {
       display: flex;
+      flex-wrap: wrap;
       justify-content: center;
       gap: 20px;
       margin: 15px 0;
@@ -50,6 +60,7 @@
 
     .checkboxes label {
       font-weight: bold;
+      color: #ff69b4;
     }
 
     .name-fields {
@@ -59,35 +70,101 @@
 
     .name-input {
       width: 100%;
-      padding: 8px;
-      margin-bottom: 8px;
-      border: none;
-      border-radius: 4px;
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 2px solid #ffe0f0;
+      border-radius: 10px;
     }
 
     .btn {
-      padding: 10px 20px;
+      padding: 12px 24px;
       font-size: 16px;
       margin: 10px;
       cursor: pointer;
       border: none;
-      border-radius: 5px;
+      border-radius: 20px;
+      transition: background 0.3s ease;
     }
 
     .add-more {
-      background-color: #ffd700;
-      color: black;
+      background-color: #ffb6c1;
+      color: white;
+    }
+
+    .add-more:hover {
+      background-color: #ffa6b1;
     }
 
     .submit-btn {
-      background-color: #00bfff;
+      background-color: #87cefa;
       color: white;
+    }
+
+    .submit-btn:hover {
+      background-color: #6ec6f5;
     }
 
     #status {
       margin-top: 10px;
       font-weight: bold;
       color: red;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      font-size: 14px;
+    }
+
+    th, td {
+      border: 1px solid #ffccdd;
+      padding: 10px;
+    }
+
+    th {
+      background-color: #ffe4ec;
+      color: #ff1493;
+    }
+
+    td {
+      background-color: #fff0f5;
+    }
+
+    input[type="text"], input[type="number"] {
+      font-size: 16px;
+    }
+
+    @media (max-width: 600px) {
+      .form-group {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .form-group label {
+        margin-bottom: 5px;
+      }
+
+      .checkboxes {
+        flex-direction: column;
+      }
+
+      .btn {
+        width: 100%;
+      }
+
+      table, thead, tbody, th, td, tr {
+        display: block;
+        text-align: left;
+      }
+
+      th {
+        background-color: #ffccdd;
+      }
+
+      td {
+        border-top: none;
+      }
     }
   </style>
 </head>
@@ -198,13 +275,9 @@
         statusDiv.textContent = 'Error! Duplicate Name Entry.';
       }
     }
-  </script>
 
-  <!-- ✅ Validation script placed here without changing anything else -->
-  <script>
     document.addEventListener('DOMContentLoaded', () => {
       const areaInput = document.getElementById('area');
-
       areaInput.addEventListener('input', () => {
         let val = areaInput.value;
         val = val.replace(/[^0-9]/g, '');
@@ -216,6 +289,5 @@
       });
     });
   </script>
-
 </body>
 </html>
