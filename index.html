@@ -1,204 +1,118 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Event Registration</title>
     <style>
         body {
             background-color: #1f1f1f;
             color: white;
             font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
             text-align: center;
+        }
+        header {
             padding: 20px;
         }
-        .hidden { display: none; }
-        .status-box {
-            background: #333;
-            padding: 15px;
-            margin: 10px auto;
-            width: 300px;
-            border-radius: 5px;
+        img {
+            height: 100px;
         }
-        .approved { background-color: green; }
-        .pending { background-color: red; }
-        table {
-            margin: auto;
+        h1 {
+            font-size: 1.5em;
+            margin: 10px 0 0 0;
+        }
+        h2 {
+            font-size: 1.2em;
+            margin-bottom: 20px;
+        }
+        form {
             background-color: #333;
-            color: white;
-            border-collapse: collapse;
+            padding: 20px;
+            margin: 0 auto;
+            border-radius: 10px;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
-        th, td {
+        input, textarea, button {
+            font-size: 1em;
             padding: 10px;
-            border: 1px solid #fff;
+            border-radius: 5px;
+            border: none;
+            width: 100%;
         }
         button {
-            margin: 5px;
-            padding: 10px 20px;
             background-color: #00bfff;
             color: white;
-            border: none;
-            border-radius: 5px;
+            font-weight: bold;
             cursor: pointer;
         }
-        input, select {
-            padding: 8px;
-            margin: 5px;
+        textarea {
+            resize: none;
+        }
+        #form-message {
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        footer button {
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
-    <img src="/static/logo.png" alt="Logo" style="height: 100px;" />
-    <h1>International One Way Outreach Church</h1>
+    <header>
+        <img src="/static/logo.png" alt="Logo">
+        <h1>International One Way Outreach Church</h1>
+        <h2>Register Single or Group</h2>
+    </header>
 
-    <!-- Registration Form -->
-    <div id="form-section">
-        <h2>Event Registration</h2>
-        <input type="text" id="church" placeholder="Church Name"><br>
-        <input type="number" id="area" placeholder="Area"><br>
-        <textarea id="names" placeholder="Enter names, one per line"></textarea><br>
-        <button onclick="submitForm()">Register</button>
-        <div id="form-message"></div>
-    </div>
+    <form onsubmit="submitForm(); return false;">
+        <input type="text" id="church" placeholder="Church Name" required>
+        <input type="number" id="area" placeholder="Area" required>
+        <textarea id="names" placeholder="Enter names, one per line" rows="6" required></textarea>
+        <button type="submit">Register</button>
+    </form>
 
-    <!-- Status Section -->
-    <div id="status-section" class="hidden">
-        <h2>Status Page</h2>
-        <div id="status-content"></div>
-        <button onclick="reloadStatus()">Refresh</button>
-        <button id="done-button" class="hidden" onclick="location.reload()">Done!</button>
-    </div>
-
-    <!-- Admin Section -->
-    <div id="admin-section" class="hidden">
-        <h2>Admin Panel</h2>
-        <select id="filterType" onchange="applyFilter()">
-            <option value="all">All</option>
-            <option value="church">Church</option>
-            <option value="area">Area</option>
-        </select>
-        <select id="filterValue" onchange="filterRows()" style="display:none;"></select>
-        <div id="count"></div>
-        <table id="admin-table">
-            <thead>
-                <tr><th>Full Name</th><th>Church</th><th>Area</th><th>Status</th></tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-        <button onclick="saveDatabase()">Save Database</button>
-        <button onclick="eraseData()">Erase All Data</button>
-        <button onclick="location.reload()">Refresh Page</button>
-    </div>
+    <div id="form-message"></div>
+    <footer>
+        <button onclick="loginAdmin()">Admin</button>
+    </footer>
 
     <script>
-        const churches = [];
-        const areas = [];
-
         function submitForm() {
-            const names = document.getElementById('names').value.trim().split('\n');
             const church = document.getElementById('church').value.trim();
-            const area = document.getElementById('area').value;
+            const area = document.getElementById('area').value.trim();
+            const names = document.getElementById('names').value.trim().split('\n').map(n => n.trim()).filter(n => n);
+
+            if (!church || !area || names.length === 0) {
+                document.getElementById('form-message').innerText = 'Please fill out all fields.';
+                return;
+            }
 
             fetch('/submit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ names, church, area })
+                body: JSON.stringify({ church, area, names })
             })
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
-                    showStatus(data.group_id);
+                    window.location.href = `/status?id=${data.group_id}`;
                 } else {
                     document.getElementById('form-message').innerText = data.message;
                 }
+            })
+            .catch(err => {
+                document.getElementById('form-message').innerText = 'Something went wrong.';
             });
-        }
-
-        function showStatus(groupId) {
-            fetch(`/status?id=${groupId}`)
-            .then(res => res.text())
-            .then(html => {
-                document.getElementById('form-section').classList.add('hidden');
-                document.getElementById('status-section').classList.remove('hidden');
-                document.getElementById('status-content').innerHTML = html;
-                if (html.includes('All Approved')) {
-                    document.getElementById('done-button').classList.remove('hidden');
-                }
-            });
-        }
-
-        function reloadStatus() {
-            const groupId = new URLSearchParams(window.location.search).get('id');
-            if (groupId) {
-                showStatus(groupId);
-            } else {
-                location.reload();
-            }
         }
 
         function loginAdmin() {
-            const password = prompt("Enter admin password:");
-            window.location.href = `/admin?password=${password}`;
-        }
-
-        function applyFilter() {
-            const type = document.getElementById('filterType').value;
-            const valDropdown = document.getElementById('filterValue');
-            const countDiv = document.getElementById('count');
-            const rows = document.querySelectorAll('#admin-table tbody tr');
-
-            if (type === 'all') {
-                valDropdown.style.display = 'none';
-                rows.forEach(row => row.style.display = '');
-                countDiv.innerText = `Total Registered: ${rows.length}`;
-            } else {
-                valDropdown.style.display = 'inline';
-                valDropdown.innerHTML = '';
-                const list = type === 'church' ? churches : areas;
-                list.forEach(val => {
-                    const opt = document.createElement('option');
-                    opt.value = val;
-                    opt.innerText = val;
-                    valDropdown.appendChild(opt);
-                });
-                filterRows();
-            }
-        }
-
-        function filterRows() {
-            const type = document.getElementById('filterType').value;
-            const val = document.getElementById('filterValue').value;
-            const rows = document.querySelectorAll('#admin-table tbody tr');
-            let count = 0;
-            rows.forEach(row => {
-                if (row.dataset[type] === val) {
-                    row.style.display = '';
-                    count++;
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-            document.getElementById('count').innerText = `Total Registered: ${count}`;
-        }
-
-        function approve(name) {
-            fetch('/approve', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ full_name: name })
-            }).then(() => location.reload());
-        }
-
-        function eraseData() {
-            const pass = prompt("Enter password to erase all data:");
-            fetch(`/erase?password=${pass}`, { method: 'POST' })
-                .then(res => {
-                    if (res.ok) location.reload();
-                    else alert("Incorrect password or error.");
-                });
-        }
-
-        function saveDatabase() {
-            window.location.href = "/save-db";
+            const pass = prompt('Enter admin password:');
+            if (pass) window.location.href = `/admin?password=${pass}`;
         }
     </script>
 </body>
