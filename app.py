@@ -24,7 +24,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Save to DB
+# Save to SQLite
 def save_to_db(area, church, names, status="Pending"):
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
@@ -44,7 +44,7 @@ def sync_to_google_sheets(area, church, names, status="Pending"):
         }
         requests.post(SHEET_BEST_URL, json=data)
 
-# Get status
+# Get status by area/church
 def get_status(area, church):
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
@@ -53,7 +53,7 @@ def get_status(area, church):
     conn.close()
     return rows
 
-# Routes
+# ROUTES
 @app.route('/')
 def index():
     return open('index.html').read()
@@ -93,20 +93,17 @@ def approve():
     data = request.get_json()
     entry_id = data['id']
 
-    # Update local DB
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
     c.execute("UPDATE registrations SET status = 'Approved' WHERE id = ?", (entry_id,))
     conn.commit()
 
-    # Get the row to sync
     c.execute("SELECT area, church, name FROM registrations WHERE id = ?", (entry_id,))
     row = c.fetchone()
     conn.close()
 
     if row:
         area, church, name = row
-        # Sync status to Google Sheets
         requests.patch(SHEET_BEST_URL, json={
             "area": area,
             "church": church,
@@ -115,7 +112,7 @@ def approve():
 
     return jsonify({"message": "Status updated to Approved"})
 
-# ✅ Run DB init even on Render
+# Always init DB (important for Render)
 init_db()
 
 if __name__ == '__main__':
