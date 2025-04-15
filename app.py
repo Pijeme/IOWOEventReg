@@ -20,13 +20,6 @@ class Registration(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 # -------------------------------
-# Create DB on startup
-# -------------------------------
-@app.before_first_request
-def create_tables():
-    db.create_all()
-
-# -------------------------------
 # Routes
 # -------------------------------
 @app.route("/")
@@ -85,6 +78,10 @@ def admin():
     registrations = Registration.query.order_by(Registration.timestamp.desc()).all()
     return render_template("admin.html", registrations=registrations)
 
+# -------------------------------
+# Start app & ensure DB exists
+# -------------------------------
 if __name__ == "__main__":
+    db.create_all()
     port = int(os.environ.get("PORT", 5000))
     app.run(debug=True, host="0.0.0.0", port=port)
