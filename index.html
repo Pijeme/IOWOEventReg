@@ -1,118 +1,138 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Event Registration</title>
     <style>
         body {
-            background-color: #1f1f1f;
-            color: white;
             font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
             margin: 0;
             padding: 0;
-            text-align: center;
         }
-        header {
+        .container {
+            max-width: 800px;
+            margin: 30px auto;
+            background-color: #fff;
             padding: 20px;
-        }
-        img {
-            height: 100px;
-        }
-        h1 {
-            font-size: 1.5em;
-            margin: 10px 0 0 0;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
         h2 {
-            font-size: 1.2em;
-            margin-bottom: 20px;
+            text-align: center;
         }
         form {
-            background-color: #333;
-            padding: 20px;
-            margin: 0 auto;
-            border-radius: 10px;
-            max-width: 400px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
         }
-        input, textarea, button {
-            font-size: 1em;
+        label {
+            margin-top: 10px;
+        }
+        input[type="text"], input[type="email"] {
             padding: 10px;
+            margin-top: 5px;
             border-radius: 5px;
-            border: none;
-            width: 100%;
+            border: 1px solid #ccc;
+        }
+        .checkboxes {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .checkboxes label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .group-inputs {
+            display: none;
+            flex-direction: column;
+        }
+        .group-inputs input {
+            margin-top: 5px;
         }
         button {
-            background-color: #00bfff;
+            padding: 12px;
+            background-color: #007bff;
             color: white;
-            font-weight: bold;
+            border: none;
+            border-radius: 5px;
+            margin-top: 20px;
             cursor: pointer;
         }
-        textarea {
-            resize: none;
+        .add-more-btn {
+            background-color: #28a745;
+            margin-top: 10px;
         }
-        #form-message {
-            margin-top: 15px;
-            font-weight: bold;
-        }
-        footer button {
-            margin-top: 20px;
+        @media (max-width: 600px) {
+            .checkboxes {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
 <body>
-    <header>
-        <img src="/static/logo.png" alt="Logo">
-        <h1>International One Way Outreach Church</h1>
-        <h2>Register Single or Group</h2>
-    </header>
+    <div class="container">
+        <h2>Event Registration</h2>
+        <form id="registrationForm" action="/submit" method="POST">
+            <div class="checkboxes">
+                <label><input type="radio" name="reg_type" value="single" checked> Single Registration</label>
+                <label><input type="radio" name="reg_type" value="group"> Group Registration</label>
+            </div>
 
-    <form onsubmit="submitForm(); return false;">
-        <input type="text" id="church" placeholder="Church Name" required>
-        <input type="number" id="area" placeholder="Area" required>
-        <textarea id="names" placeholder="Enter names, one per line" rows="6" required></textarea>
-        <button type="submit">Register</button>
-    </form>
+            <div id="single-input">
+                <label>Name:</label>
+                <input type="text" name="name" required>
+            </div>
 
-    <div id="form-message"></div>
-    <footer>
-        <button onclick="loginAdmin()">Admin</button>
-    </footer>
+            <div class="group-inputs" id="group-inputs">
+                <label>Group Names:</label>
+                <div id="group-names">
+                    <input type="text" name="group_name_1">
+                    <input type="text" name="group_name_2">
+                    <input type="text" name="group_name_3">
+                    <input type="text" name="group_name_4">
+                    <input type="text" name="group_name_5">
+                    <input type="text" name="group_name_6">
+                    <input type="text" name="group_name_7">
+                    <input type="text" name="group_name_8">
+                    <input type="text" name="group_name_9">
+                    <input type="text" name="group_name_10">
+                </div>
+                <button type="button" class="add-more-btn" onclick="addMoreInput()">Add More</button>
+            </div>
+
+            <label>Email:</label>
+            <input type="email" name="email" required>
+
+            <button type="submit">Submit</button>
+        </form>
+    </div>
 
     <script>
-        function submitForm() {
-            const church = document.getElementById('church').value.trim();
-            const area = document.getElementById('area').value.trim();
-            const names = document.getElementById('names').value.trim().split('\n').map(n => n.trim()).filter(n => n);
+        const singleInput = document.getElementById('single-input');
+        const groupInputs = document.getElementById('group-inputs');
+        const radioButtons = document.querySelectorAll('input[name="reg_type"]');
 
-            if (!church || !area || names.length === 0) {
-                document.getElementById('form-message').innerText = 'Please fill out all fields.';
-                return;
-            }
-
-            fetch('/submit', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ church, area, names })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    window.location.href = `/status?id=${data.group_id}`;
+        radioButtons.forEach(btn => {
+            btn.addEventListener('change', () => {
+                if (btn.value === 'single') {
+                    singleInput.style.display = 'block';
+                    groupInputs.style.display = 'none';
                 } else {
-                    document.getElementById('form-message').innerText = data.message;
+                    singleInput.style.display = 'none';
+                    groupInputs.style.display = 'flex';
                 }
-            })
-            .catch(err => {
-                document.getElementById('form-message').innerText = 'Something went wrong.';
             });
-        }
+        });
 
-        function loginAdmin() {
-            const pass = prompt('Enter admin password:');
-            if (pass) window.location.href = `/admin?password=${pass}`;
+        function addMoreInput() {
+            const container = document.getElementById('group-names');
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.name = `group_name_${container.children.length + 1}`;
+            container.appendChild(input);
         }
     </script>
 </body>
