@@ -93,7 +93,24 @@ def status():
 
     all_approved = all(row[1] == 'Approved' for row in rows)
 
-    return render_template_string("""...""", rows=rows, all_approved=all_approved)
+    return render_template_string("""
+    <html>
+    <head><title>Status</title></head>
+    <body>
+        <h2>Registration Status</h2>
+        <ul>
+        {% for name, status in rows %}
+            <li>{{ name }} - {{ status }}</li>
+        {% endfor %}
+        </ul>
+        {% if all_approved %}
+            <p style="color:green;">✅ All members have been approved!</p>
+        {% else %}
+            <p style="color:orange;">⏳ Waiting for approval...</p>
+        {% endif %}
+    </body>
+    </html>
+    """, rows=rows, all_approved=all_approved)
 
 @app.route('/admin')
 def admin_login():
@@ -110,7 +127,50 @@ def admin_login():
         cursor.execute('SELECT DISTINCT area FROM registrations')
         areas = [row[0] for row in cursor.fetchall()]
 
-    return render_template_string("""...""", rows=rows, churches=churches, areas=areas, erase_pass=ERASE_PASSWORD)
+    return render_template_string("""
+    <html>
+    <head>
+        <title>Admin Panel</title>
+        <script>
+            async function approve(name) {
+                await fetch("/approve", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ full_name: name })
+                });
+                location.reload();
+            }
+        </script>
+    </head>
+    <body>
+        <h2>Admin Panel</h2>
+        <table border="1" cellpadding="5">
+            <tr>
+                <th>Name</th>
+                <th>Church</th>
+                <th>Area</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+            {% for name, church, area, status in rows %}
+            <tr>
+                <td>{{ name }}</td>
+                <td>{{ church }}</td>
+                <td>{{ area }}</td>
+                <td>{{ status }}</td>
+                <td>
+                    {% if status != 'Approved' %}
+                    <button onclick="approve('{{ name }}')">Approve</button>
+                    {% else %}
+                    ✅
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </body>
+    </html>
+    """, rows=rows, churches=churches, areas=areas, erase_pass=ERASE_PASSWORD)
 
 @app.route('/approve', methods=['POST'])
 def approve():
@@ -119,9 +179,7 @@ def approve():
         conn.execute('UPDATE registrations SET status = "Approved" WHERE full_name = ?', (full_name,))
         conn.commit()
 
-    # Update in Google Sheets
     try:
-        # Get all current rows
         response = requests.get(SHEET_BEST_URL)
         if response.status_code == 200:
             all_data = response.json()
