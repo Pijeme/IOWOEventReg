@@ -1,117 +1,105 @@
-from flask import Flask, request, jsonify, render_template_string, redirect, send_file
+from flask import Flask, render_template, request, jsonify, send_file
 import sqlite3
-import os
 from datetime import datetime
-import requests
 import pandas as pd
-from io import BytesIO
+import requests
+import io
 
 app = Flask(__name__)
 
-DB_FILE = 'data.db'
-ADMIN_PASSWORD = '1234567890'
-ERASE_PASSWORD = 'psr550'
-SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/5579b6ce-f97d-484c-9f62-f670ed64e5ff'
+DB_FILE = "database.db"
+SHEETBEST_URL = "https://api.sheetbest.com/sheets/5579b6ce-f97d-484c-9f62-f670ed64e5ff"
 
-
+# Initialize DB
 def init_db():
     with sqlite3.connect(DB_FILE) as conn:
-        conn.execute("""
+        cursor = conn.cursor()
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS registrations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                full_name TEXT UNIQUE,
-                church TEXT,
-                area INTEGER,
-                group_id TEXT,
-                status TEXT DEFAULT 'Pending',
-                last_updated TEXT
-            );
-        """)
-        # Check if table is empty
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM registrations")
-        if cursor.fetchone()[0] == 0:
-            try:
-                response = requests.get(SHEET_BEST_URL)
-                data = response.json()
-                for row in data:
-                    conn.execute('''
-                        INSERT OR IGNORE INTO registrations (full_name, church, area, group_id, status, last_updated)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ''', (
-                        row['full_name'],
-                        row['church'],
-                        row['area'],
-                        row['group_id'],
-                        row.get('status', 'Pending'),
-                        datetime.now().isoformat()
-                    ))
-                conn.commit()
-                print("Restored data from Google Sheets.")
-            except Exception as e:
-                print("Error restoring from Google Sheets:", e)
-
-
-init_db()
-
+                area_number TEXT NOT NULL,
+                church_name TEXT NOT NULL,
+                registrant_name TEXT NOT NULL,
+                registration_type TEXT NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_updated DATETIME
+            )
+        ''')
+        conn.commit()
 
 @app.route('/')
 def index():
-    return open('index.html').read()
-
+    return render_template('index.html')
 
 @app.route('/submit', methods=['POST'])
 def submit():
-    data = request.json
+    data = request.get_json()
     area = data.get('area')
     church = data.get('church')
-    names = data.get('names')
-    group_id = datetime.now().strftime('%Y%m%d%H%M%S')
-    now = datetime.now().isoformat()
+    names = data.get('names', [])
+    registration_type = 'group' if len(names) > 1 else 'single'
+    now = datetime.utcnow().isoformat()
+
+    if not area or not church or not names:
+        return jsonify({'status': 'error', 'message': 'Please complete all fields.'})
 
     with sqlite3.connect(DB_FILE) as conn:
         cursor = conn.cursor()
         for name in names:
-            cursor.execute('SELECT COUNT(*) FROM registrations WHERE full_name = ?', (name,))
-            if cursor.fetchone()[0] > 0:
-                return jsonify({'status': 'error', 'message': f"The name '{name}' has already been registered."})
-
-        for name in names:
-            cursor.execute(
-                'INSERT INTO registrations (full_name, church, area, group_id, last_updated) VALUES (?, ?, ?, ?, ?)',
-                (name, church, area, group_id, now)
-            )
+            cursor.execute('''
+                INSERT INTO registrations (area_number, church_name, registrant_name, registration_type, last_updated)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (area, church, name, registration_type, now))
         conn.commit()
 
+    # Send to Google Sheets via Sheet.best
+    payload = [
+        {
+            "Area Number": area,
+            "Church Name": church,
+            "Registrant Name": name,
+            "Registration Type": registration_type,
+            "Timestamp": now
+        }
+        for name in names
+    ]
     try:
-        payload = [{
-            'full_name': name,
-            'church': church,
-            'area': area,
-            'group_id': group_id,
-            'status': 'Pending'
-        } for name in names]
-        requests.post(SHEET_BEST_URL, json=payload)
+        requests.post(SHEETBEST_URL, json=payload)
     except Exception as e:
-        print("Failed to sync to Google Sheets:", e)
+        print("Error syncing to Google Sheets:", e)
 
-    return jsonify({'status': 'success', 'group_id': group_id})
+    return jsonify({"status": "success", "group_id": now})
 
+@app.route('/status')
+def status():
+    group_id = request.args.get("id")
+    return f"Registration successful! Group ID: {group_id}"
 
-@app.route('/download_excel')
-def download_excel():
+@app.route('/admin')
+def admin():
+    password = request.args.get("password")
+    if password != "1234567890":
+        return "Unauthorized", 401
+
     with sqlite3.connect(DB_FILE) as conn:
-        df = pd.read_sql_query("SELECT full_name, church, area, group_id, status FROM registrations", conn)
+        cursor = conn.cursor()
+        cursor.execute("SELECT area_number, church_name, registrant_name, registration_type, timestamp FROM registrations ORDER BY timestamp DESC")
+        data = cursor.fetchall()
 
-    output = BytesIO()
+    return render_template("admin.html", registrations=data)
+
+@app.route('/save-database')
+def save_database():
+    with sqlite3.connect(DB_FILE) as conn:
+        df = pd.read_sql_query("SELECT * FROM registrations", conn)
+
+    output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Registrations')
+
     output.seek(0)
-
-    return send_file(output, download_name='registrations.xlsx', as_attachment=True)
-
-
-# (Other routes remain the same)
+    return send_file(output, as_attachment=True, download_name="registrations.xlsx", mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=3000, debug=True)
+    init_db()
+    app.run(debug=True)
