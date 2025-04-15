@@ -261,6 +261,18 @@ def approve():
     full_name = request.json['full_name']
     with sqlite3.connect(DB_FILE) as conn:
         conn.execute('UPDATE registrations SET status = "Approved" WHERE full_name = ?', (full_name,))
+    
+    # Update Google Sheets status to "Approved"
+    try:
+        sheet_data = requests.get(SHEET_BEST_URL).json()
+        for row in sheet_data:
+            if row.get('full_name') == full_name:
+                update_url = f"{SHEET_BEST_URL}/full_name/{full_name}"
+                requests.patch(update_url, json={'status': 'Approved'})
+                break
+    except Exception as e:
+        print("Failed to update Google Sheets status:", e)
+
     return '', 204
 
 @app.route('/erase', methods=['POST'])
