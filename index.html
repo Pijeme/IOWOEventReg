@@ -188,5 +188,44 @@
       }
     }
   </script>
+
+  <script>
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.querySelector('form'); // Adjust if your form has an ID
+    const areaInput = document.querySelector('input[name="area"]');
+    const churchInput = document.querySelector('input[name="church"]');
+
+    form.addEventListener('submit', (e) => {
+        const area = parseInt(areaInput.value);
+        const church = churchInput.value.trim();
+
+        if (!church) {
+            alert("Please enter your church.");
+            e.preventDefault();
+            return;
+        }
+
+        if (!area || area < 1 || area > 7) {
+            alert("Area must be a number between 1 and 7.");
+            e.preventDefault();
+            return;
+        }
+    });
+
+    areaInput.addEventListener('input', () => {
+        let val = areaInput.value;
+        // Only keep digits and remove invalid characters
+        val = val.replace(/[^0-9]/g, '');
+        if (val && (parseInt(val) < 1 || parseInt(val) > 7)) {
+            areaInput.value = ''; // Clear input if out of range
+        } else {
+            areaInput.value = val;
+        }
+    });
+});
+</script>
+
+
+  
 </body>
 </html>
