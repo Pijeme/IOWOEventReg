@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template_string, redirect
+""from flask import Flask, request, jsonify, render_template_string, redirect
 import sqlite3
 import os
 from datetime import datetime
@@ -93,24 +93,34 @@ def status():
 
     all_approved = all(row[1] == 'Approved' for row in rows)
 
-    return render_template_string("""
+    return render_template_string('''
     <html>
-    <head><title>Status</title></head>
+    <head>
+        <title>Status</title>
+        <style>
+            body { font-family: Arial; padding: 20px; background: #f4f4f4; }
+            .card { background: white; border-radius: 10px; padding: 20px; max-width: 600px; margin: auto; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+            .approved { color: green; font-weight: bold; }
+            .pending { color: orange; font-weight: bold; }
+        </style>
+    </head>
     <body>
-        <h2>Registration Status</h2>
-        <ul>
-        {% for name, status in rows %}
-            <li>{{ name }} - {{ status }}</li>
-        {% endfor %}
-        </ul>
-        {% if all_approved %}
-            <p style="color:green;">✅ All members have been approved!</p>
-        {% else %}
-            <p style="color:orange;">⏳ Waiting for approval...</p>
-        {% endif %}
+        <div class="card">
+            <h2>Status for Group ID: {{ request.args.get('id') }}</h2>
+            <ul>
+                {% for full_name, status in rows %}
+                    <li>{{ full_name }} - <span class="{{ 'approved' if status == 'Approved' else 'pending' }}">{{ status }}</span></li>
+                {% endfor %}
+            </ul>
+            {% if all_approved %}
+                <p style="color: green; font-weight: bold;">All members approved ✅</p>
+            {% else %}
+                <p style="color: orange; font-weight: bold;">Waiting for approval ⏳</p>
+            {% endif %}
+        </div>
     </body>
     </html>
-    """, rows=rows, all_approved=all_approved)
+    ''', rows=rows, all_approved=all_approved)
 
 @app.route('/admin')
 def admin_login():
@@ -127,50 +137,49 @@ def admin_login():
         cursor.execute('SELECT DISTINCT area FROM registrations')
         areas = [row[0] for row in cursor.fetchall()]
 
-    return render_template_string("""
+    return render_template_string('''
     <html>
     <head>
         <title>Admin Panel</title>
+        <style>
+            body { font-family: Arial; padding: 20px; background: #eef2f3; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { padding: 10px; border: 1px solid #ccc; text-align: left; }
+            th { background-color: #f4f4f4; }
+            .btn { padding: 5px 10px; background-color: #4CAF50; color: white; border: none; cursor: pointer; border-radius: 5px; }
+            .btn:hover { background-color: #45a049; }
+        </style>
         <script>
-            async function approve(name) {
-                await fetch("/approve", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({ full_name: name })
-                });
-                location.reload();
+            function approve(full_name) {
+                fetch('/approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ full_name: full_name })
+                }).then(() => location.reload());
             }
         </script>
     </head>
     <body>
         <h2>Admin Panel</h2>
-        <table border="1" cellpadding="5">
-            <tr>
-                <th>Name</th>
-                <th>Church</th>
-                <th>Area</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-            {% for name, church, area, status in rows %}
-            <tr>
-                <td>{{ name }}</td>
-                <td>{{ church }}</td>
-                <td>{{ area }}</td>
-                <td>{{ status }}</td>
-                <td>
-                    {% if status != 'Approved' %}
-                    <button onclick="approve('{{ name }}')">Approve</button>
-                    {% else %}
-                    ✅
-                    {% endif %}
-                </td>
-            </tr>
+        <table>
+            <tr><th>Name</th><th>Church</th><th>Area</th><th>Status</th><th>Action</th></tr>
+            {% for full_name, church, area, status in rows %}
+                <tr>
+                    <td>{{ full_name }}</td>
+                    <td>{{ church }}</td>
+                    <td>{{ area }}</td>
+                    <td>{{ status }}</td>
+                    <td>
+                        {% if status != 'Approved' %}
+                            <button class="btn" onclick="approve('{{ full_name }}')">Approve</button>
+                        {% endif %}
+                    </td>
+                </tr>
             {% endfor %}
         </table>
     </body>
     </html>
-    """, rows=rows, churches=churches, areas=areas, erase_pass=ERASE_PASSWORD)
+    ''', rows=rows, churches=churches, areas=areas, erase_pass=ERASE_PASSWORD)
 
 @app.route('/approve', methods=['POST'])
 def approve():
@@ -199,4 +208,4 @@ def erase():
     return '', 204
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=3000, debug=True)
+    app.run(host='0.0.0.0', port=3000, debug=True)""
