@@ -1,65 +1,64 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, request, jsonify, render_template, redirect
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, timedelta
-import threading
+from datetime import datetime
 import requests
+import uuid
+import os
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///registrations.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# Create tables
-with app.app_context():
-    db.create_all()
+SHEETBEST_URL = 'https://api.sheetbest.com/sheets/5579b6ce-f97d-484c-9f62-f670ed64e5ff'
+ADMIN_PASSWORD = '1234567890'
+last_update_time = datetime.min
 
-# Model for registrations
+# Define the model
 class Registration(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     group_id = db.Column(db.String(20))
-    name = db.Column(db.String(100))
-    area = db.Column(db.String(10))
+    name = db.Column(db.String(100), unique=True)
+    area = db.Column(db.Integer)
     church = db.Column(db.String(100))
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
-# Google Sheet sync setup
-SHEET_URL = 'https://api.sheetbest.com/sheets/5579b6ce-f97d-484c-9f62-f670ed64e5ff'
-last_synced = datetime.utcnow() - timedelta(minutes=9)
-
-def sync_to_google_sheets():
-    global last_synced
-    now = datetime.utcnow()
-    if now - last_synced >= timedelta(minutes=9):
-        data = []
-        with app.app_context():
-            registrations = Registration.query.all()
-            for reg in registrations:
-                data.append({
-                    'Timestamp': reg.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                    'Group ID': reg.group_id,
-                    'Name': reg.name,
-                    'Area': reg.area,
-                    'Church': reg.church
-                })
-        try:
-            requests.post(SHEET_URL, json=data)
-            last_synced = now
-        except Exception as e:
-            print("Error syncing to Google Sheets:", e)
-
-# Background thread to sync every 9 minutes
-def schedule_sync():
-    while True:
-        sync_to_google_sheets()
-        threading.Event().wait(540)  # 9 minutes
-
-threading.Thread(target=schedule_sync, daemon=True).start()
-
+# Route: Home page
 @app.route('/')
 def index():
     return render_template('index.html')
 
+# Route: Status page
+@app.route('/status')
+def status():
+    group_id = request.args.get('id')
+    if not group_id:
+        return "Missing ID", 400
+    group = Registration.query.filter_by(group_id=group_id).all()
+    if not group:
+        return "Group ID not found", 404
+    return render_template('status.html', group=group)
+
+# Route: Admin page
+@app.route('/admin')
+def admin():
+    password = request.args.get('password')
+    if password != ADMIN_PASSWORD:
+        return "Unauthorized", 401
+
+    global last_update_time
+    now = datetime.utcnow()
+    diff = (now - last_update_time).total_seconds()
+
+    if diff >= 540:  # 9 minutes
+        sync_to_google_sheets()
+        last_update_time = now
+
+    data = Registration.query.order_by(Registration.timestamp.desc()).all()
+    return render_template('admin.html', data=data)
+
+# Route: Submit form data
 @app.route('/submit', methods=['POST'])
 def submit():
     data = request.get_json()
@@ -67,48 +66,43 @@ def submit():
     church = data.get('church')
     names = data.get('names')
 
-    # Validation
-    try:
-        area_num = int(area)
-        if area_num < 1 or area_num > 7:
-            return jsonify({'status': 'error', 'message': 'Please input Area number 1 to 7 only'}), 400
-    except:
-        return jsonify({'status': 'error', 'message': 'Area must be a number between 1 and 7'}), 400
+    if not area or not (1 <= int(area) <= 7):
+        return jsonify({'status': 'error', 'message': 'Please input Area number 1 to 7 only'}), 400
 
-    if not church or not church.strip():
+    if not church or church.strip() == '':
         return jsonify({'status': 'error', 'message': 'Please provide your Church information to proceed'}), 400
 
-    if not names or not any(n.strip() for n in names):
-        return jsonify({'status': 'error', 'message': 'Please enter at least one name'}), 400
+    group_id = str(uuid.uuid4())[:8]
+    for name in names:
+        existing = Registration.query.filter_by(name=name).first()
+        if existing:
+            return jsonify({'status': 'error', 'message': 'Duplicate Name Entry'}), 400
+        new_entry = Registration(name=name, group_id=group_id, area=area, church=church)
+        db.session.add(new_entry)
 
-    group_id = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
-
-    with app.app_context():
-        for name in names:
-            name = name.strip()
-            if name:
-                existing = Registration.query.filter_by(name=name).first()
-                if existing:
-                    return jsonify({'status': 'error', 'message': 'Error! Duplicate Name Entry.'}), 400
-                reg = Registration(name=name, area=area, church=church, group_id=group_id)
-                db.session.add(reg)
-        db.session.commit()
-
-    sync_to_google_sheets()
+    db.session.commit()
     return jsonify({'status': 'success', 'group_id': group_id})
 
-@app.route('/status')
-def status():
-    group_id = request.args.get('id')
-    with app.app_context():
-        people = Registration.query.filter_by(group_id=group_id).all()
-    return render_template('status.html', people=people, group_id=group_id)
+# Function: Sync to Google Sheets
+def sync_to_google_sheets():
+    data = Registration.query.all()
+    payload = [{
+        'Name': d.name,
+        'Area': d.area,
+        'Church': d.church,
+        'Group ID': d.group_id,
+        'Timestamp': d.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+    } for d in data]
 
-@app.route('/admin')
-def admin():
-    with app.app_context():
-        registrations = Registration.query.all()
-    return render_template('admin.html', registrations=registrations)
+    try:
+        response = requests.post(SHEETBEST_URL, json=payload)
+        response.raise_for_status()
+        print("Synced to Google Sheets")
+    except Exception as e:
+        print(f"Error syncing to Google Sheets: {e}")
 
+# Initialize the database
 if __name__ == '__main__':
-    app.run(debug=True)
+    with app.app_context():
+        db.create_all()
+    app.run(host='0.0.0.0', port=10000)
