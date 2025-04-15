@@ -8,6 +8,7 @@ app = Flask(__name__)
 DATABASE = 'registrations.db'
 SHEET_BEST_URL = "https://api.sheetbest.com/sheets/5579b6ce-f97d-484c-9f62-f670ed64e5ff"
 
+# Initialize DB
 def init_db():
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
@@ -23,6 +24,7 @@ def init_db():
     conn.commit()
     conn.close()
 
+# Save to DB
 def save_to_db(area, church, names, status="Pending"):
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
@@ -31,6 +33,7 @@ def save_to_db(area, church, names, status="Pending"):
     conn.commit()
     conn.close()
 
+# Sync to Google Sheets
 def sync_to_google_sheets(area, church, names, status="Pending"):
     for name in names:
         data = {
@@ -41,6 +44,7 @@ def sync_to_google_sheets(area, church, names, status="Pending"):
         }
         requests.post(SHEET_BEST_URL, json=data)
 
+# Get status
 def get_status(area, church):
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
@@ -49,6 +53,7 @@ def get_status(area, church):
     conn.close()
     return rows
 
+# Routes
 @app.route('/')
 def index():
     return open('index.html').read()
@@ -82,19 +87,19 @@ def admin():
     conn.close()
     return jsonify(rows)
 
-# ✅ STATUS UPDATE CODE PRESERVED
+# ✅ STATUS UPDATE CODE
 @app.route('/approve', methods=['POST'])
 def approve():
     data = request.get_json()
     entry_id = data['id']
 
-    # Update SQLite
+    # Update local DB
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
     c.execute("UPDATE registrations SET status = 'Approved' WHERE id = ?", (entry_id,))
     conn.commit()
 
-    # Fetch entry for syncing
+    # Get the row to sync
     c.execute("SELECT area, church, name FROM registrations WHERE id = ?", (entry_id,))
     row = c.fetchone()
     conn.close()
@@ -110,7 +115,9 @@ def approve():
 
     return jsonify({"message": "Status updated to Approved"})
 
+# ✅ Run DB init even on Render
+init_db()
+
 if __name__ == '__main__':
-    init_db()
     port = int(os.environ.get("PORT", 3000))
     app.run(host='0.0.0.0', port=port)
